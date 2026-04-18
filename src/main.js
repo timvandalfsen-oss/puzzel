@@ -406,9 +406,11 @@ async function refreshGalleryStatus() {
 }
 
 galleryConnectBtn.addEventListener("click", async () => {
-  galleryHintEl.textContent = "Map kiezen…";
+  galleryHintEl.textContent = "Start…";
   try {
-    const r = await connectGallery();
+    const r = await connectGallery(step => {
+      galleryHintEl.textContent = "Stap: " + step;
+    });
     galleryHintEl.textContent = `OK — ${r.fileCount} foto's gevonden in "${r.dirName}".`;
     await refreshGalleryStatus();
   } catch (e) {

@@ -152,13 +152,43 @@ export function galleryApiSupported() {
   return typeof window !== "undefined" && typeof window.showDirectoryPicker === "function";
 }
 
-// Laat de user een map kiezen, sla de handle op en scan files
-export async function connectGallery() {
+// Laat de user een map kiezen, sla de handle op en scan files.
+// Roept optional 'onStep(label)' callback bij elke fase voor diagnose.
+export async function connectGallery(onStep = () => {}) {
   if (!galleryApiSupported()) throw new Error("Galerij-API niet ondersteund in deze browser");
-  const handle = await window.showDirectoryPicker({ mode: "read" });
-  await saveGalleryHandle(handle);
-  const files = await _scanHandle(handle);
-  await saveGalleryCache(files);
+  onStep("picker openen");
+  let handle;
+  try {
+    handle = await window.showDirectoryPicker({ mode: "read" });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    throw new Error("Picker-fout: " + e.message);
+  }
+  onStep("handle gekregen: " + handle.name);
+
+  // Probeer op te slaan — faalt op sommige mobile-browsers (DataCloneError)
+  try {
+    await saveGalleryHandle(handle);
+    onStep("handle opgeslagen");
+  } catch (e) {
+    throw new Error("Opslaan van handle lukt niet op deze browser (" + e.name + ")");
+  }
+
+  onStep("map scannen…");
+  let files;
+  try {
+    files = await _scanHandle(handle);
+  } catch (e) {
+    throw new Error("Scan-fout: " + e.message);
+  }
+  onStep(`${files.length} foto's gevonden`);
+
+  try {
+    await saveGalleryCache(files);
+  } catch (e) {
+    throw new Error("Cache-opslag fout: " + e.message);
+  }
+
   return { dirName: handle.name, fileCount: files.length };
 }
 
