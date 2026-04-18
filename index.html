@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#181c24" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Puzzel" />
+<link rel="icon" href="icons/favicon.png" type="image/png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<title>Puzzel</title>
+<link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+
+<!-- Scherm 1: Start / Moeilijkheid kiezen -->
+<section id="screen-menu" class="screen active">
+  <header class="app-title">
+    <h1>Puzzel</h1>
+  </header>
+
+  <div class="menu-group">
+    <h2>Moeilijkheid</h2>
+    <div class="difficulty-grid">
+      <button class="diff-btn" data-difficulty="easy">
+        <span class="num">12</span>
+        <span class="lbl">Makkelijk</span>
+        <span class="sub">3 × 4</span>
+      </button>
+      <button class="diff-btn" data-difficulty="medium">
+        <span class="num">35</span>
+        <span class="lbl">Middel</span>
+        <span class="sub">5 × 7</span>
+      </button>
+      <button class="diff-btn" data-difficulty="hard">
+        <span class="num">80</span>
+        <span class="lbl">Moeilijk</span>
+        <span class="sub">8 × 10</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="menu-group">
+    <h2>Afbeelding</h2>
+    <div class="source-grid">
+      <button class="src-btn" data-source="stock">
+        <span class="ico">🖼️</span>
+        <span>Stock foto</span>
+      </button>
+      <button class="src-btn" data-source="own">
+        <span class="ico">📷</span>
+        <span>Eigen foto</span>
+      </button>
+      <button class="src-btn" data-source="random">
+        <span class="ico">🎲</span>
+        <span>Random</span>
+      </button>
+    </div>
+    <button id="start-btn" class="primary-btn" disabled>Start puzzel</button>
+    <p id="menu-hint" class="hint">Kies eerst een moeilijkheid en een foto-bron.</p>
+  </div>
+
+  <div class="menu-group">
+    <h2>Mijn foto's</h2>
+    <p class="subtle">
+      <span id="own-count">0</span> eigen foto('s) beschikbaar
+      (<span id="bundled-count">0</span> ingebouwd +
+      <span id="uploaded-count">0</span> toegevoegd).
+    </p>
+    <div class="row">
+      <label class="secondary-btn">
+        + Foto toevoegen
+        <input id="upload-input" type="file" accept="image/*" hidden />
+      </label>
+      <button id="manage-btn" class="secondary-btn">Beheren</button>
+    </div>
+  </div>
+
+  <div id="resume-banner" class="resume-banner hidden">
+    <span>Er staat een onvoltooide puzzel klaar.</span>
+    <div class="row">
+      <button id="resume-btn" class="primary-btn small">Verder</button>
+      <button id="resume-dismiss" class="secondary-btn small">Nieuw</button>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <span id="install-btn-wrap" class="hidden">
+      <button id="install-btn" class="secondary-btn small">App installeren</button>
+    </span>
+    <span class="version">v1.0</span>
+  </footer>
+</section>
+
+<!-- Scherm 2: Speelveld -->
+<section id="screen-game" class="screen">
+  <header class="game-header">
+    <button id="back-btn" class="icon-btn" aria-label="Terug naar menu">←</button>
+    <div class="game-info">
+      <span id="game-timer" class="timer">00:00</span>
+      <span id="game-progress" class="progress">0/0</span>
+    </div>
+    <button id="shuffle-btn" class="icon-btn" aria-label="Schudden">↻</button>
+  </header>
+
+  <div id="game-area" class="game-area">
+    <!-- Board (grid waar stukjes moeten komen) -->
+    <div id="board" class="board"></div>
+    <!-- Tray (losse stukjes, scrollbaar horizontaal) -->
+    <div id="tray-wrap" class="tray-wrap">
+      <div id="tray" class="tray"></div>
+    </div>
+    <!-- Pieces worden als directe kinderen van game-area ingevoegd (absolute positie) -->
+  </div>
+</section>
+
+<!-- Scherm 3: Gewonnen -->
+<section id="screen-win" class="screen">
+  <div class="win-inner">
+    <h1>🎉 Gelukt!</h1>
+    <p>Tijd: <strong id="win-time">00:00</strong></p>
+    <p>Moeilijkheid: <strong id="win-difficulty">-</strong></p>
+    <img id="win-preview" alt="Voltooide puzzel" />
+    <div class="row centered">
+      <button id="win-again" class="primary-btn">Nieuwe puzzel</button>
+    </div>
+  </div>
+</section>
+
+<!-- Dialog: Beheer eigen foto's -->
+<dialog id="manage-dialog" class="dialog">
+  <form method="dialog">
+    <h2>Mijn foto's</h2>
+    <p class="subtle">Tik op een foto om hem te verwijderen. Ingebouwde foto's kunnen niet weg.</p>
+    <div id="manage-grid" class="manage-grid"></div>
+    <menu class="dialog-menu">
+      <button class="secondary-btn" value="close">Sluiten</button>
+    </menu>
+  </form>
+</dialog>
+
+<script type="module" src="src/main.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW register failed:', err));
+    });
+  }
+</script>
+</body>
+</html>
