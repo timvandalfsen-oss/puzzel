@@ -446,6 +446,28 @@ galleryRefreshBtn.addEventListener("click", async () => {
   }
 });
 
+// ---------- Reset/vernieuwen ----------
+const resetBtn = document.getElementById("reset-btn");
+if (resetBtn) {
+  resetBtn.addEventListener("click", async () => {
+    if (!confirm("App-cache legen en verversen? Je eigen geüploade foto's blijven bewaard.")) return;
+    try {
+      // Unregister alle SW's
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      }
+      // Wis alle caches (behoud IndexedDB!)
+      if (window.caches) {
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      }
+    } catch (e) { console.warn(e); }
+    // Forceer verse fetch
+    location.href = location.pathname + "?t=" + Date.now();
+  });
+}
+
 // ---------- Init ----------
 refreshCounts();
 refreshResume();

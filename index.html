@@ -90,6 +90,12 @@
       </div>
       <p id="gallery-hint" class="hint"></p>
     </div>
+
+    <div class="row">
+      <button id="reset-btn" class="secondary-btn small" title="App-cache legen en herladen">
+        ↻ App vernieuwen
+      </button>
+    </div>
   </div>
 
   <div id="resume-banner" class="resume-banner hidden">
@@ -158,8 +164,25 @@
 <script type="module" src="src/main.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW register failed:', err));
+    window.addEventListener('load', async () => {
+      try {
+        const reg = await navigator.serviceWorker.register('sw.js');
+        // Forceer update-check wanneer de app (her)geopend wordt
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        });
+        // Ook periodiek zolang de app open is
+        setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
+      } catch (err) {
+        console.warn('SW register failed:', err);
+      }
+    });
+    // Automatische reload wanneer een nieuwe SW actief wordt
+    let _reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_reloaded) return;
+      _reloaded = true;
+      location.reload();
     });
   }
 </script>
