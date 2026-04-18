@@ -6,7 +6,7 @@
 //
 // Versie ophogen bij elke release zodat oude cache geleegd wordt.
 
-const CACHE_VERSION = "puzzel-v3";
+const CACHE_VERSION = "puzzel-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
