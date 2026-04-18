@@ -53,6 +53,10 @@
         <span class="ico">📷</span>
         <span>Eigen foto</span>
       </button>
+      <button class="src-btn" data-source="gallery" id="src-gallery" disabled title="Koppel eerst een galerij-map">
+        <span class="ico">📱</span>
+        <span>Galerij</span>
+      </button>
       <button class="src-btn" data-source="random">
         <span class="ico">🎲</span>
         <span>Random</span>
@@ -75,6 +79,16 @@
         <input id="upload-input" type="file" accept="image/*" hidden />
       </label>
       <button id="manage-btn" class="secondary-btn">Beheren</button>
+    </div>
+
+    <div class="gallery-block">
+      <p id="gallery-status" class="subtle">Galerij-map: niet verbonden</p>
+      <div class="row">
+        <button id="gallery-connect" class="secondary-btn">📱 Galerij koppelen</button>
+        <button id="gallery-disconnect" class="secondary-btn hidden">Ontkoppelen</button>
+        <button id="gallery-refresh" class="secondary-btn hidden" title="Map opnieuw scannen">↻ Scan</button>
+      </div>
+      <p id="gallery-hint" class="hint"></p>
     </div>
   </div>
 

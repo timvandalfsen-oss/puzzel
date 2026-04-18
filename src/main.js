@@ -3,6 +3,9 @@
 import {
   getStockImages, getOwnImages, pickRandom,
   uploadAndStore, removeUserPhoto, resolveImageUrl, getBundledImages,
+  galleryApiSupported, connectGallery, disconnectGallery,
+  getGalleryStatus, refreshGalleryCache,
+  pickRandomGalleryImage, getGalleryPickerItems, loadGalleryItemUrl,
 } from "./images.js";
 import { listPhotos, saveGameState, loadGameState, clearGameState } from "./storage.js";
 import { createGame, DIFFICULTIES } from "./puzzle.js";
@@ -26,6 +29,13 @@ const manageGrid = document.getElementById("manage-grid");
 const bundledCountEl = document.getElementById("bundled-count");
 const uploadedCountEl = document.getElementById("uploaded-count");
 const ownCountEl = document.getElementById("own-count");
+
+const galleryStatusEl = document.getElementById("gallery-status");
+const galleryHintEl = document.getElementById("gallery-hint");
+const galleryConnectBtn = document.getElementById("gallery-connect");
+const galleryDisconnectBtn = document.getElementById("gallery-disconnect");
+const galleryRefreshBtn = document.getElementById("gallery-refresh");
+const galleryBronBtn = document.getElementById("src-gallery");
 
 const resumeBanner = document.getElementById("resume-banner");
 const resumeBtn = document.getElementById("resume-btn");
@@ -74,6 +84,7 @@ diffButtons.forEach(btn => {
 
 srcButtons.forEach(btn => {
   btn.addEventListener("click", () => {
+    if (btn.disabled) return;
     srcButtons.forEach(b => b.classList.remove("selected"));
     btn.classList.add("selected");
     selectedSource = btn.dataset.source;
@@ -93,7 +104,8 @@ function updateStartEnabled() {
   if (isRandom) {
     menuHint.textContent = "🎲 Verrassing: willekeurige foto en moeilijkheid.";
   } else {
-    const srcLabel = selectedSource === "stock" ? "stock" : "eigen";
+    const labels = { stock: "stock", own: "eigen", gallery: "galerij" };
+    const srcLabel = labels[selectedSource] || "eigen";
     menuHint.textContent = `${DIFFICULTIES[selectedDifficulty].label} • willekeurige ${srcLabel} foto`;
   }
 }
@@ -164,14 +176,22 @@ async function renderManageGrid() {
 async function startNewGame() {
   menuHint.textContent = "Bezig met laden…";
   try {
+    // Galerij-bron: aparte flow (resize-on-demand, permission-check)
+    if (selectedSource === "gallery") {
+      const { url, ref } = await pickRandomGalleryImage();
+      await launchGame({ difficulty: selectedDifficulty, imageRef: ref, imageUrl: url });
+      return;
+    }
+
     let pool;
     let difficulty = selectedDifficulty;
     if (selectedSource === "random") {
-      // Kies willekeurig een moeilijkheid en combineer beide pools.
       const diffs = Object.keys(DIFFICULTIES);
       difficulty = diffs[Math.floor(Math.random() * diffs.length)];
-      const [stock, own] = await Promise.all([getStockImages(), getOwnImages()]);
-      pool = [...stock, ...own];
+      const [stock, own, gallery] = await Promise.all([
+        getStockImages(), getOwnImages(), getGalleryPickerItems(),
+      ]);
+      pool = [...stock, ...own, ...gallery];
     } else if (selectedSource === "stock") {
       pool = await getStockImages();
     } else {
@@ -184,14 +204,26 @@ async function startNewGame() {
       return;
     }
     const picked = pickRandom(pool);
-    await launchGame({
-      difficulty,
-      imageRef: { kind: picked.kind, url: picked.url, id: picked.id },
-      imageUrl: picked.url,
-    });
+
+    // Random kan een galerij-item zijn → url moet nog gegenereerd worden
+    let imageUrl = picked.url;
+    let imageRef = { kind: picked.kind, url: picked.url, id: picked.id };
+    if (picked.kind === "gallery") {
+      imageUrl = await loadGalleryItemUrl(picked.name);
+      if (!imageUrl) {
+        menuHint.textContent = "Galerij-foto niet beschikbaar — opnieuw proberen?";
+        return;
+      }
+      imageRef = { kind: "gallery", name: picked.name };
+    }
+    await launchGame({ difficulty, imageRef, imageUrl });
   } catch (err) {
     console.error(err);
-    menuHint.textContent = "Fout: " + err.message;
+    if (err.name === "AbortError") {
+      menuHint.textContent = "Geannuleerd.";
+    } else {
+      menuHint.textContent = "Fout: " + err.message;
+    }
   }
 }
 
@@ -340,7 +372,80 @@ installBtn.addEventListener("click", async () => {
   if (choice && choice.outcome) console.log("Install keuze:", choice.outcome);
 });
 
+// ---------- Galerij ----------
+async function refreshGalleryStatus() {
+  if (!galleryApiSupported()) {
+    galleryStatusEl.textContent = "Galerij: niet ondersteund in deze browser.";
+    galleryConnectBtn.classList.add("hidden");
+    galleryDisconnectBtn.classList.add("hidden");
+    galleryRefreshBtn.classList.add("hidden");
+    galleryBronBtn.disabled = true;
+    galleryBronBtn.title = "Alleen beschikbaar in Android Chrome / Edge";
+    return;
+  }
+  try {
+    const status = await getGalleryStatus();
+    if (status.connected) {
+      galleryStatusEl.textContent = `Galerij verbonden: ${status.dirName} (${status.fileCount} foto's)`;
+      galleryConnectBtn.classList.add("hidden");
+      galleryDisconnectBtn.classList.remove("hidden");
+      galleryRefreshBtn.classList.remove("hidden");
+      galleryBronBtn.disabled = status.fileCount === 0;
+      galleryBronBtn.title = status.fileCount === 0 ? "Geen foto's gevonden in deze map" : "";
+    } else {
+      galleryStatusEl.textContent = "Galerij-map: niet verbonden";
+      galleryConnectBtn.classList.remove("hidden");
+      galleryDisconnectBtn.classList.add("hidden");
+      galleryRefreshBtn.classList.add("hidden");
+      galleryBronBtn.disabled = true;
+      galleryBronBtn.title = "Koppel eerst een galerij-map";
+    }
+  } catch (e) {
+    console.warn("gallery status failed", e);
+  }
+}
+
+galleryConnectBtn.addEventListener("click", async () => {
+  galleryHintEl.textContent = "Map kiezen…";
+  try {
+    const r = await connectGallery();
+    galleryHintEl.textContent = `OK — ${r.fileCount} foto's gevonden in "${r.dirName}".`;
+    await refreshGalleryStatus();
+  } catch (e) {
+    if (e.name === "AbortError") {
+      galleryHintEl.textContent = "Geen map gekozen.";
+    } else {
+      galleryHintEl.textContent = "Fout: " + e.message;
+    }
+  }
+});
+
+galleryDisconnectBtn.addEventListener("click", async () => {
+  if (!confirm("Galerij-verbinding verbreken?")) return;
+  await disconnectGallery();
+  // Als galerij als geselecteerde bron stond → reset
+  if (selectedSource === "gallery") {
+    selectedSource = null;
+    srcButtons.forEach(b => b.classList.remove("selected"));
+    updateStartEnabled();
+  }
+  galleryHintEl.textContent = "Galerij ontkoppeld.";
+  await refreshGalleryStatus();
+});
+
+galleryRefreshBtn.addEventListener("click", async () => {
+  galleryHintEl.textContent = "Map opnieuw scannen…";
+  try {
+    const files = await refreshGalleryCache();
+    galleryHintEl.textContent = `${files.length} foto's gevonden.`;
+    await refreshGalleryStatus();
+  } catch (e) {
+    galleryHintEl.textContent = "Fout: " + e.message;
+  }
+});
+
 // ---------- Init ----------
 refreshCounts();
 refreshResume();
+refreshGalleryStatus();
 updateStartEnabled();

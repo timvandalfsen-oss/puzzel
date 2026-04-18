@@ -67,6 +67,17 @@ git push
 ```
 GitHub Pages update de site automatisch binnen een minuut.
 
+## Galerij koppelen (Android Chrome / Edge)
+
+Op Android kan de app een hele fotomap op je telefoon gebruiken als puzzel-bron:
+1. Open de app → sectie **"Mijn foto's"** → **📱 Galerij koppelen**.
+2. Kies een map (bv. `DCIM/Camera`, een WhatsApp-Images map, of een eigen verzameling).
+3. De app telt hoeveel foto's er staan en toont de status.
+4. In het menu wordt de **📱 Galerij** bron-knop actief → kies hem met een moeilijkheid → elke puzzel trekt willekeurig een andere foto uit die map.
+5. Bovendien pakt de **🎲 Random** knop voortaan ook uit galerij-foto's.
+
+Werkt niet op iOS (Safari) of Firefox — daar blijft de knop uitgegrijsd. Bij Android Chrome moet je periodiek opnieuw toestemming geven (OS-beperking).
+
 ## Nieuwe foto's toevoegen aan de ingebouwde pool
 
 Als je extra foto's wilt bundelen (zichtbaar voor iedereen die de app opent):

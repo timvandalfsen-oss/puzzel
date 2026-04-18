@@ -6,7 +6,7 @@
 //   - "meta"    key = arbitrary             value = anything (bv. high scores later)
 
 const DB_NAME = "puzzel-app";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let _dbPromise = null;
 
@@ -16,9 +16,11 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" });
-      if (!db.objectStoreNames.contains("state"))  db.createObjectStore("state");
-      if (!db.objectStoreNames.contains("meta"))   db.createObjectStore("meta");
+      if (!db.objectStoreNames.contains("photos"))        db.createObjectStore("photos", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("state"))         db.createObjectStore("state");
+      if (!db.objectStoreNames.contains("meta"))          db.createObjectStore("meta");
+      if (!db.objectStoreNames.contains("handles"))       db.createObjectStore("handles");
+      if (!db.objectStoreNames.contains("gallery-cache")) db.createObjectStore("gallery-cache");
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -59,6 +61,36 @@ export async function getPhotoBlob(id) {
   const store = await tx("photos");
   const rec = await wrap(store.get(id));
   return rec ? rec.blob : null;
+}
+
+// ---------- Gallery handle + filelist-cache ----------
+export async function saveGalleryHandle(handle) {
+  const store = await tx("handles", "readwrite");
+  return wrap(store.put(handle, "gallery"));
+}
+
+export async function loadGalleryHandle() {
+  const store = await tx("handles");
+  return wrap(store.get("gallery"));
+}
+
+export async function clearGalleryHandle() {
+  const [h, c] = await Promise.all([
+    tx("handles", "readwrite"),
+    tx("gallery-cache", "readwrite"),
+  ]);
+  await wrap(h.delete("gallery"));
+  await wrap(c.delete("files"));
+}
+
+export async function saveGalleryCache(files) {
+  const store = await tx("gallery-cache", "readwrite");
+  return wrap(store.put(files, "files"));
+}
+
+export async function loadGalleryCache() {
+  const store = await tx("gallery-cache");
+  return wrap(store.get("files"));
 }
 
 // ---------- Game state (save / resume) ----------

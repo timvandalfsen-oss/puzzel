@@ -4,7 +4,11 @@
 //   - Bij upload: resize client-side via <canvas> naar max 1500px lange zijde (JPEG q=0.85).
 //   - Levert object-URLs voor user-foto's en pad-URLs voor ingebouwde foto's.
 
-import { addPhoto, listPhotos, getPhotoBlob, deletePhoto } from "./storage.js";
+import {
+  addPhoto, listPhotos, getPhotoBlob, deletePhoto,
+  saveGalleryHandle, loadGalleryHandle, clearGalleryHandle,
+  saveGalleryCache, loadGalleryCache,
+} from "./storage.js";
 
 const MAX_SIDE = 1500;
 const JPEG_QUALITY = 0.85;
@@ -121,11 +125,136 @@ export async function loadImageElement(url) {
 
 // ---------- Resolve URL voor een save-state image (kan user-foto zijn) ----------
 export async function resolveImageUrl(ref) {
-  // ref = { kind, url OR id }
+  // ref = { kind, url OR id OR name }
   if (ref.kind === "user") {
     const blob = await getPhotoBlob(ref.id);
     if (!blob) return null;
     return URL.createObjectURL(blob);
   }
+  if (ref.kind === "gallery") {
+    try {
+      const blob = await loadGalleryFileBlob(ref.name);
+      return blob ? URL.createObjectURL(blob) : null;
+    } catch {
+      return null;
+    }
+  }
   return ref.url;
+}
+
+// ===========================================================================
+// Galerij (File System Access API)
+// ===========================================================================
+
+const IMAGE_EXT = /\.(jpe?g|png|webp|heic|heif)$/i;
+
+export function galleryApiSupported() {
+  return typeof window !== "undefined" && typeof window.showDirectoryPicker === "function";
+}
+
+// Laat de user een map kiezen, sla de handle op en scan files
+export async function connectGallery() {
+  if (!galleryApiSupported()) throw new Error("Galerij-API niet ondersteund in deze browser");
+  const handle = await window.showDirectoryPicker({ mode: "read" });
+  await saveGalleryHandle(handle);
+  const files = await _scanHandle(handle);
+  await saveGalleryCache(files);
+  return { dirName: handle.name, fileCount: files.length };
+}
+
+export async function disconnectGallery() {
+  await clearGalleryHandle();
+}
+
+// Status zonder de permission-prompt te triggeren
+export async function getGalleryStatus() {
+  const handle = await loadGalleryHandle();
+  if (!handle) return { connected: false };
+  const files = (await loadGalleryCache()) || [];
+  return { connected: true, dirName: handle.name, fileCount: files.length };
+}
+
+// Vernieuw de filelist-cache (triggert wel een permission check)
+export async function refreshGalleryCache() {
+  const handle = await loadGalleryHandle();
+  if (!handle) throw new Error("Geen galerij verbonden");
+  await _ensureReadPermission(handle);
+  const files = await _scanHandle(handle);
+  await saveGalleryCache(files);
+  return files;
+}
+
+// Pak een random image, resize, geef blob-URL + ref terug
+export async function pickRandomGalleryImage() {
+  const handle = await loadGalleryHandle();
+  if (!handle) throw new Error("Geen galerij verbonden");
+  await _ensureReadPermission(handle);
+
+  let files = (await loadGalleryCache()) || [];
+  if (!files.length) {
+    files = await _scanHandle(handle);
+    await saveGalleryCache(files);
+  }
+  if (!files.length) throw new Error("Geen foto's in de verbonden map");
+
+  const pick = files[Math.floor(Math.random() * files.length)];
+  const blob = await _readFile(handle, pick.name);
+  const resized = await resizeImageBlob(blob);
+  return {
+    url: URL.createObjectURL(resized),
+    ref: { kind: "gallery", name: pick.name },
+  };
+}
+
+// Gebruikt voor save-resume
+async function loadGalleryFileBlob(name) {
+  const handle = await loadGalleryHandle();
+  if (!handle) return null;
+  const ok = await _ensureReadPermission(handle);
+  if (!ok) return null;
+  const blob = await _readFile(handle, name);
+  return await resizeImageBlob(blob);
+}
+
+// Voor de Random-bron: combineer een subset galerij-files als pseudo-items
+export async function getGalleryPickerItems() {
+  const status = await getGalleryStatus();
+  if (!status.connected) return [];
+  const files = (await loadGalleryCache()) || [];
+  return files.map(f => ({ id: "gallery:" + f.name, kind: "gallery", name: f.name }));
+}
+
+// Laad een gallery-item op naam (gebruikt door Random-flow)
+export async function loadGalleryItemUrl(name) {
+  const blob = await loadGalleryFileBlob(name);
+  return blob ? URL.createObjectURL(blob) : null;
+}
+
+// ---------- Interne helpers ----------
+async function _ensureReadPermission(handle) {
+  const opts = { mode: "read" };
+  let state = await handle.queryPermission(opts);
+  if (state === "granted") return true;
+  state = await handle.requestPermission(opts);
+  return state === "granted";
+}
+
+async function _scanHandle(handle) {
+  const files = [];
+  for await (const [name, entry] of handle.entries()) {
+    if (entry.kind !== "file") continue;
+    if (!IMAGE_EXT.test(name)) continue;
+    try {
+      const f = await entry.getFile();
+      files.push({ name, size: f.size });
+    } catch {
+      files.push({ name, size: 0 });
+    }
+  }
+  return files;
+}
+
+async function _readFile(handle, name) {
+  const fh = await handle.getFileHandle(name);
+  return await fh.getFile();
 }
