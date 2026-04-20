@@ -1,10 +1,13 @@
-"""Resize de foto's uit C:\\ClaudeDesk\\ImagesPuzzle naar puzzel-app/bundled/.
+"""Resize de foto's uit C:\\ClaudeDesk\\may naar puzzel-app/bundled/ (may-variant).
 
 Doel:
 - Lange zijde max 1500 px (goed genoeg voor 80-stukjes op telefoon).
 - JPEG quality 82 (~200-400 KB per foto).
 - EXIF-rotatie toepassen zodat portret-foto's niet kantelen in de browser.
 - Bestandsnamen normaliseren (geen spaties/diacritics in URL's).
+
+Deze branch (may) gebruikt May's persoonlijke foto's als bundled-pool.
+Op main staat de originele ImagesPuzzle-map.
 
 Run:
     python scripts/resize_bundled.py
@@ -14,7 +17,7 @@ from PIL import Image, ImageOps
 import json
 import re
 
-SRC = Path(r"C:\ClaudeDesk\ImagesPuzzle")
+SRC = Path(r"C:\ClaudeDesk\may")
 DST = Path(__file__).parent.parent / "bundled"
 MAX_SIDE = 1500
 QUALITY = 82
