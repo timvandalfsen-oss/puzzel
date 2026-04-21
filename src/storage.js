@@ -63,6 +63,17 @@ export async function getPhotoBlob(id) {
   return rec ? rec.blob : null;
 }
 
+// ---------- Generieke meta-store (records, counters, flags) ----------
+export async function getMeta(key) {
+  const store = await tx("meta");
+  return wrap(store.get(key));
+}
+
+export async function setMeta(key, value) {
+  const store = await tx("meta", "readwrite");
+  return wrap(store.put(value, key));
+}
+
 // ---------- Gallery handle + filelist-cache ----------
 export async function saveGalleryHandle(handle) {
   const store = await tx("handles", "readwrite");

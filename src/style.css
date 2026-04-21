@@ -104,6 +104,53 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: #2c3344; border: 1px solid #3a4255;
 }
 
+/* Stats & rank */
+.rank-bar {
+  height: 8px; border-radius: 4px; overflow: hidden;
+  background: #2c3344; border: 1px solid #3a4255;
+  margin: 4px 0;
+}
+.rank-bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #efbe7d, #aac79c);
+  transition: width 0.6s ease-out;
+}
+.stats-details { margin-top: 4px; }
+.stats-details summary { cursor: pointer; padding: 4px 0; }
+.stats-details p { font-size: 13px; color: #c5cbd7; margin: 2px 0; }
+.rank-up {
+  background: linear-gradient(120deg, #efbe7d33, #aac79c33);
+  border: 1px solid #efbe7d;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #efbe7d;
+  font-weight: 600;
+}
+
+/* Fullscreen-zoom overlay (na winnen) */
+.zoom-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0a0c10;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease-out;
+}
+.zoom-overlay.visible { opacity: 1; pointer-events: auto; }
+.zoom-overlay img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform: scale(0.6);
+  opacity: 0;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease-out;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  border-radius: 6px;
+}
+.zoom-overlay.visible img { transform: scale(1); opacity: 1; }
+
 .app-footer {
   margin-top: auto; padding-top: 16px;
   display: flex; justify-content: space-between; align-items: center;

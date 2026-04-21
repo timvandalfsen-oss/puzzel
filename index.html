@@ -106,6 +106,20 @@
     </div>
   </div>
 
+  <div class="menu-group">
+    <h2>Mijn stats</h2>
+    <p>🧩 <strong id="stats-completed">0</strong> puzzels voltooid</p>
+    <p>🏅 <strong id="stats-rank">-</strong></p>
+    <div class="rank-bar"><div id="stats-rank-fill" class="rank-bar-fill"></div></div>
+    <p class="subtle" id="stats-rank-next">—</p>
+    <details class="stats-details">
+      <summary class="subtle">Records per moeilijkheid</summary>
+      <p>Makkelijk: <strong id="rec-easy">–</strong></p>
+      <p>Middel: <strong id="rec-medium">–</strong></p>
+      <p>Moeilijk: <strong id="rec-hard">–</strong></p>
+    </details>
+  </div>
+
   <footer class="app-footer">
     <span id="install-btn-wrap" class="hidden">
       <button id="install-btn" class="secondary-btn small">App installeren</button>
@@ -141,13 +155,19 @@
   <div class="win-inner">
     <h1>🎉 Gelukt!</h1>
     <p>Tijd: <strong id="win-time">00:00</strong></p>
+    <p id="win-record" class="subtle hidden">Record: –</p>
     <p>Moeilijkheid: <strong id="win-difficulty">-</strong></p>
+    <p id="win-rank" class="subtle">🏅 Rang: <strong id="win-rank-name">-</strong></p>
+    <p id="win-rank-up" class="rank-up hidden">⭐ Rang-upgrade: <strong id="win-rank-new">-</strong>!</p>
     <img id="win-preview" alt="Voltooide puzzel" />
     <div class="row centered">
       <button id="win-again" class="primary-btn">Nieuwe puzzel</button>
     </div>
   </div>
 </section>
+
+<!-- Zoom-overlay (fullscreen puzzel na win) -->
+<div id="zoom-overlay" class="zoom-overlay hidden"></div>
 
 <!-- Dialog: Beheer eigen foto's -->
 <dialog id="manage-dialog" class="dialog">

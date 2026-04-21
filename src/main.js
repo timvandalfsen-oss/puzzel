@@ -7,9 +7,11 @@ import {
   getGalleryStatus, refreshGalleryCache,
   pickRandomGalleryImage, getGalleryPickerItems, loadGalleryItemUrl,
 } from "./images.js";
-import { listPhotos, saveGameState, loadGameState, clearGameState } from "./storage.js";
+import { listPhotos, saveGameState, loadGameState, clearGameState, getMeta, setMeta } from "./storage.js";
 import { createGame, DIFFICULTIES } from "./puzzle.js";
 import { celebrate } from "./confetti.js";
+import { playPling } from "./sound.js";
+import { getRank } from "./rank.js";
 
 // ---------- DOM refs ----------
 const screens = {
@@ -48,9 +50,23 @@ const gameProgressEl = document.getElementById("game-progress");
 const gameArea = document.getElementById("game-area");
 
 const winTimeEl = document.getElementById("win-time");
+const winRecordEl = document.getElementById("win-record");
 const winDiffEl = document.getElementById("win-difficulty");
+const winRankEl = document.getElementById("win-rank-name");
+const winRankUpEl = document.getElementById("win-rank-up");
+const winRankNewEl = document.getElementById("win-rank-new");
 const winPreview = document.getElementById("win-preview");
 const winAgainBtn = document.getElementById("win-again");
+
+const statsCompletedEl = document.getElementById("stats-completed");
+const statsRankEl = document.getElementById("stats-rank");
+const statsRankFillEl = document.getElementById("stats-rank-fill");
+const statsRankNextEl = document.getElementById("stats-rank-next");
+const recEasyEl = document.getElementById("rec-easy");
+const recMediumEl = document.getElementById("rec-medium");
+const recHardEl = document.getElementById("rec-hard");
+
+const zoomOverlay = document.getElementById("zoom-overlay");
 
 const installBtnWrap = document.getElementById("install-btn-wrap");
 const installBtn = document.getElementById("install-btn");
@@ -70,7 +86,9 @@ let deferredInstallPrompt = null;
 // ---------- Screens ----------
 function showScreen(name) {
   for (const k in screens) screens[k].classList.toggle("active", k === name);
+  currentScreen = name;
 }
+let currentScreen = "menu";
 
 // ---------- Menu: selection logic ----------
 diffButtons.forEach(btn => {
@@ -232,6 +250,7 @@ async function launchGame({ difficulty, imageRef, imageUrl }) {
   currentImageUrl = imageUrl;
   currentDifficulty = difficulty;
   showScreen("game");
+  pushBackState("game");
   // Wacht tot game-area gelayout is (setTimeout i.p.v. rAF,
   // want rAF pauzeert in achtergrond-tabs / iframes zonder focus).
   await new Promise(r => setTimeout(r, 0));
@@ -243,10 +262,15 @@ async function launchGame({ difficulty, imageRef, imageUrl }) {
     onWin: onGameWin,
     onProgress: onGameProgress,
     onSave: onGameSave,
+    onStreak: onGameStreak,
   });
 
   startTimer();
   onGameProgress(0, currentGame.pieces.length);
+}
+
+function onGameStreak(count) {
+  try { playPling(count); } catch (e) { /* ignore */ }
 }
 
 // ---------- Game events ----------
@@ -264,14 +288,75 @@ function onGameSave(serialized) {
   }).catch(e => console.warn("save mislukt:", e));
 }
 
-function onGameWin() {
+async function onGameWin() {
   stopTimer();
   clearGameState();
-  winTimeEl.textContent = formatTime(timerElapsedMs);
+
+  // --- Stats + records updaten ---
+  const finalMs = timerElapsedMs;
+  const recKey = `record:${currentDifficulty}`;
+  const oldRecord = await getMeta(recKey);
+  const isNewRecord = !oldRecord || finalMs < oldRecord;
+  if (isNewRecord) await setMeta(recKey, finalMs);
+
+  const oldCompleted = (await getMeta("stats:completed")) || 0;
+  const newCompleted = oldCompleted + 1;
+  await setMeta("stats:completed", newCompleted);
+
+  const oldRank = getRank(oldCompleted);
+  const newRank = getRank(newCompleted);
+  const rankUp = newRank.index > oldRank.index;
+
+  // --- Fullscreen-zoom van de voltooide foto ---
+  await showFullscreenZoom(currentImageUrl);
+
+  // --- Win-scherm vullen ---
+  winTimeEl.textContent = formatTime(finalMs);
   winDiffEl.textContent = DIFFICULTIES[currentDifficulty].label;
   winPreview.src = currentImageUrl;
+  if (isNewRecord) {
+    winRecordEl.textContent = oldRecord
+      ? `🏆 NIEUW RECORD — vorige: ${formatTime(oldRecord)}`
+      : "🏆 NIEUW RECORD!";
+    winRecordEl.classList.remove("hidden");
+  } else if (oldRecord) {
+    winRecordEl.textContent = `Record: ${formatTime(oldRecord)}`;
+    winRecordEl.classList.remove("hidden");
+  } else {
+    winRecordEl.classList.add("hidden");
+  }
+  winRankEl.textContent = newRank.name;
+  if (rankUp) {
+    winRankNewEl.textContent = newRank.name;
+    winRankUpEl.classList.remove("hidden");
+  } else {
+    winRankUpEl.classList.add("hidden");
+  }
+
+  // Menu alvast bijwerken zodat als de user terug gaat alles klopt
+  refreshStats();
+
   showScreen("win");
   celebrate();
+}
+
+// Toon de complete foto fullscreen, blijft ~2,5 s zichtbaar, dan fade-out.
+async function showFullscreenZoom(url) {
+  zoomOverlay.innerHTML = "";
+  const img = document.createElement("img");
+  img.src = url;
+  zoomOverlay.appendChild(img);
+  zoomOverlay.classList.remove("hidden");
+  // Force layout zodat transitie werkt
+  void zoomOverlay.offsetWidth;
+  zoomOverlay.classList.add("visible");
+  // Wacht op zoom-in + bekijk-pauze
+  await new Promise(r => setTimeout(r, 600 + 2500));
+  // Fade uit
+  zoomOverlay.classList.remove("visible");
+  await new Promise(r => setTimeout(r, 450));
+  zoomOverlay.classList.add("hidden");
+  zoomOverlay.innerHTML = "";
 }
 
 // ---------- Timer ----------
@@ -300,6 +385,7 @@ function formatTime(ms) {
 
 // ---------- Back / shuffle / again ----------
 backBtn.addEventListener("click", () => {
+  if (!confirm("Puzzel stoppen? Je voortgang wordt bewaard.")) return;
   stopTimer();
   // Save state zodat we kunnen resumen
   if (currentGame) onGameSave(currentGame.serialize());
@@ -316,6 +402,8 @@ function returnToMenu() {
   if (currentGame) { currentGame.destroy(); currentGame = null; }
   showScreen("menu");
   refreshResume();
+  refreshStats();
+  pushBackState("menu");
 }
 
 // ---------- Resume ----------
@@ -446,6 +534,66 @@ galleryRefreshBtn.addEventListener("click", async () => {
   }
 });
 
+// ---------- Stats + ranking render ----------
+async function refreshStats() {
+  try {
+    const completed = (await getMeta("stats:completed")) || 0;
+    const rec = {
+      easy: await getMeta("record:easy"),
+      medium: await getMeta("record:medium"),
+      hard: await getMeta("record:hard"),
+    };
+    if (statsCompletedEl) statsCompletedEl.textContent = String(completed);
+    const rank = getRank(completed);
+    if (statsRankEl) statsRankEl.textContent = rank.name;
+    if (statsRankFillEl) statsRankFillEl.style.width = Math.round(rank.progress * 100) + "%";
+    if (statsRankNextEl) {
+      statsRankNextEl.textContent = rank.nextName
+        ? `Volgende rang: ${rank.nextName} (${rank.nextAt - completed} puzzels te gaan)`
+        : "Hoogste rang bereikt 🏆";
+    }
+    if (recEasyEl)   recEasyEl.textContent   = rec.easy   ? formatTime(rec.easy)   : "–";
+    if (recMediumEl) recMediumEl.textContent = rec.medium ? formatTime(rec.medium) : "–";
+    if (recHardEl)   recHardEl.textContent   = rec.hard   ? formatTime(rec.hard)   : "–";
+  } catch (e) {
+    console.warn("stats refresh failed", e);
+  }
+}
+
+// ---------- Back-knop bevestiging ----------
+// Strategie: bij elke schermwissel push je een state. Android/browser-back triggert
+// dan popstate i.p.v. de app te sluiten. In de handler vragen we bevestiging.
+function pushBackState(screen) {
+  try { history.pushState({ screen }, "", "#" + screen); } catch {}
+}
+
+window.addEventListener("popstate", (e) => {
+  // Als we zojuist bevestigd hebben "blijven" — reconstrueer de state
+  if (currentScreen === "game") {
+    const ok = confirm("Puzzel stoppen? Je voortgang wordt bewaard.");
+    if (ok) {
+      if (currentGame) { onGameSave(currentGame.serialize()); stopTimer(); }
+      returnToMenu();
+    } else {
+      // Undo: push de state opnieuw zodat back weer werkt bij volgende poging
+      pushBackState("game");
+    }
+  } else if (currentScreen === "win") {
+    // Op win-scherm — terug = naar menu
+    returnToMenu();
+  } else {
+    // Op menu: bevestig app sluiten
+    const ok = confirm("Puzzel-app sluiten?");
+    if (!ok) {
+      pushBackState("menu");
+    } else {
+      // Laat de native back z'n ding doen: in een echte app-install → app sluit.
+      // In een browser-tab: niets extra's, standaard gedrag wordt voortgezet.
+      window.close(); // werkt alleen voor scripted tabs, anders blijft hij
+    }
+  }
+});
+
 // ---------- Reset/vernieuwen ----------
 const resetBtn = document.getElementById("reset-btn");
 if (resetBtn) {
@@ -472,4 +620,7 @@ if (resetBtn) {
 refreshCounts();
 refreshResume();
 refreshGalleryStatus();
+refreshStats();
 updateStartEnabled();
+// Zorg dat er altijd 1 back-state in history zit zodat popstate niet direct app sluit
+pushBackState("menu");

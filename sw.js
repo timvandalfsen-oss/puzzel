@@ -6,7 +6,7 @@
 //
 // Versie ophogen bij elke release zodat oude cache geleegd wordt.
 
-const CACHE_VERSION = "puzzel-v7";
+const CACHE_VERSION = "puzzel-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -17,6 +17,8 @@ const APP_SHELL = [
   "./src/images.js",
   "./src/puzzle.js",
   "./src/confetti.js",
+  "./src/sound.js",
+  "./src/rank.js",
   "./icons/favicon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

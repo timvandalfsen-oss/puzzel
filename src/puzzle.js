@@ -55,7 +55,7 @@ function mergeGroups(keep, other) {
 
 // ---------- PuzzleGame ----------
 export class PuzzleGame {
-  constructor({ image, imageRef, cols, rows, gameArea, onWin, onProgress, onSave }) {
+  constructor({ image, imageRef, cols, rows, gameArea, onWin, onProgress, onSave, onStreak }) {
     this.image = image;
     this.imageRef = imageRef;
     this.cols = cols;
@@ -64,9 +64,11 @@ export class PuzzleGame {
     this.onWin = onWin || (() => {});
     this.onProgress = onProgress || (() => {});
     this.onSave = onSave || (() => {});
+    this.onStreak = onStreak || (() => {});
     this.pieces = [];
     this._pieceByGridKey = new Map();
     this._done = false;
+    this.streak = 0;
   }
 
   async init() {
@@ -327,9 +329,11 @@ export class PuzzleGame {
 
     const droppedOnTray = anchorGameY > this.trayTopY;
 
+    let mergedThisDrop = false;
     if (droppedOnTray) {
-      // Splits groep + legt alles terug in tray
+      // Splits groep + legt alles terug in tray → streak-reset
       for (const p of members) this._putInTray(p);
+      this.streak = 0;
     } else {
       // Plaats alle leden free op hun nieuwe positie
       for (const p of members) {
@@ -339,7 +343,16 @@ export class PuzzleGame {
         this._setFree(p, x, y);
       }
       // Probeer te mergen met buren
-      this._tryMergeGroupNeighbors(anchor.group);
+      mergedThisDrop = this._tryMergeGroupNeighbors(anchor.group);
+
+      if (mergedThisDrop) {
+        this.streak++;
+        if (this.streak > 0 && this.streak % 3 === 0) {
+          try { this.onStreak(this.streak); } catch (e) { /* ignore */ }
+        }
+      } else {
+        this.streak = 0;
+      }
     }
 
     this._reportProgress();
@@ -354,9 +367,11 @@ export class PuzzleGame {
   }
 
   // ---------- Merge-logica ----------
+  // Return: true als minstens één merge heeft plaatsgevonden.
   _tryMergeGroupNeighbors(group) {
     const thrX = this.pieceW * SNAP_THRESHOLD_RATIO;
     const thrY = this.pieceH * SNAP_THRESHOLD_RATIO;
+    let anyMerged = false;
     let merged = true;
     let safety = 0;
     while (merged && safety++ < 20) {
@@ -390,11 +405,13 @@ export class PuzzleGame {
           }
           mergeGroups(group, other);
           merged = true;
+          anyMerged = true;
           break;
         }
         if (merged) break;
       }
     }
+    return anyMerged;
   }
 
   // ---------- Progress ----------
@@ -474,11 +491,11 @@ export class PuzzleGame {
   }
 }
 
-export async function createGame({ imageRef, imageUrl, difficulty, gameArea, onWin, onProgress, onSave }) {
+export async function createGame({ imageRef, imageUrl, difficulty, gameArea, onWin, onProgress, onSave, onStreak }) {
   const { cols, rows } = DIFFICULTIES[difficulty];
   const image = await loadImageElement(imageUrl);
   const game = new PuzzleGame({
-    image, imageRef, cols, rows, gameArea, onWin, onProgress, onSave,
+    image, imageRef, cols, rows, gameArea, onWin, onProgress, onSave, onStreak,
   });
   await game.init();
   return game;
